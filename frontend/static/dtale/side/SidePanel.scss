@@ -1,0 +1,92 @@
+.side-panel-content {
+  position: absolute;
+  right: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  width: 0;
+  transition: all 0.5s;
+  margin: 0;
+  padding: 0;
+  height: calc(100vh);
+  z-index: 10;
+  background: white;
+
+  &.aggregations {
+    left: 0;
+    bottom: 0;
+    box-shadow: 0 0 0 1px rgba(101, 108, 126, 0.5) inset, 0 1px 3px 1px rgba(64, 64, 64, 0.5);
+    overflow-y: hidden;
+    height: 350px;
+    right: unset;
+  }
+
+  &.is-expanded {
+    width: calc(50vw);
+  }
+
+  &.is-expanded.missingno,
+  &.is-expanded.correlations,
+  &.is-expanded.pps,
+  &.is-expanded.gage_rnr,
+  &.is-expanded.timeseries_analysis {
+    width: calc(75vw);
+  }
+
+  &.is-expanded.aggregations {
+    width: 400px;
+  }
+
+  &.is-expanded.correlations .modal-body,
+  &.is-expanded.pps .modal-body {
+    padding: 0;
+  }
+  &.is-expanded.filter div.container {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+.main-panel-content {
+  width: 100%;
+  height: 100%;
+  transition: all 0.25s;
+
+  &.is-half {
+    width: 50%;
+  }
+
+  &.is-half.missingno {
+    width: 25%;
+  }
+
+  &.is-half.correlations {
+    width: 25%;
+  }
+}
+
+.PanelDragHandle {
+  flex: 0 0 16px;
+  z-index: 2;
+  cursor: col-resize;
+  color: #0085ff;
+  left: 0;
+  top: 50%;
+  position: absolute;
+}
+.PanelDragHandle:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.PanelDragHandleActive,
+.PanelDragHandleActive:hover {
+  color: #0b6fcc;
+  z-index: 3;
+}
+
+.PanelDragHandleIcon {
+  flex: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}

@@ -1,0 +1,23 @@
+.instances .cell,
+.instances .headerCell {
+  width: 100%;
+  height: 100%;
+  display: inherit;
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgba(170, 170, 170, 0.25);
+}
+
+.instances .headerCell {
+  font-weight: bold;
+}
+
+.instances .clickable:hover {
+  font-weight: bold;
+  cursor: pointer;
+  background-color: rgba(82, 187, 239, 0.2);
+}
+.instances .active {
+  font-weight: bold;
+  background-color: rgba(0, 255, 0, 0.2);
+}

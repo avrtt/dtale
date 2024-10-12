@@ -1,0 +1,13 @@
+{
+  "presets" : [
+    ["@babel/env", { "targets": ["last 2 versions"] }],
+    "@babel/flow",
+    "@babel/react",
+    "@babel/preset-typescript"
+  ],
+  "env": {
+    "production": {
+      "compact" : true
+    }
+  }
+}

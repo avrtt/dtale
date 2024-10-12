@@ -1,0 +1,285 @@
+import { createSelector, PayloadAction } from '@reduxjs/toolkit';
+import * as React from 'react';
+import { withTranslation, WithTranslation } from 'react-i18next';
+
+import { AppActions, SidePanelActionProps } from '../../redux/actions/AppActions';
+import * as settingsActions from '../../redux/actions/settings';
+import { useAppDispatch, useAppSelector } from '../../redux/hooks';
+import * as selectors from '../../redux/selectors';
+import { InstanceSettings, SidePanelType } from '../../redux/state/AppState';
+import { truncate } from '../../stringUtils';
+import { ColumnFilter, OutlierFilter } from '../DataViewerState';
+import * as gu from '../gridUtils';
+import * as serverState from '../serverStateManagement';
+
+import { buildMenuHandler, InfoMenuType, predefinedFilterStr } from './infoUtils';
+
+const removeBackticks = (query: string): string => query.replace(/`/g, '');
+
+export const Queries: React.FC<{ prop: string; filters: Record<string, OutlierFilter | ColumnFilter> }> = ({
+  filters,
+  prop,
+}) => {
+  const dataId = useAppSelector(selectors.selectDataId);
+  const dispatch = useAppDispatch();
+  const updateSettings = (updatedSettings: Partial<InstanceSettings>): void =>
+    dispatch(settingsActions.updateSettings(updatedSettings));
+  const dropColFilter =
+    (dropCol: string): (() => Promise<void>) =>
+    async (): Promise<void> => {
+      const updatedSettings = {
+        [prop]: Object.keys(filters).reduce((res, k) => (k === dropCol ? res : { ...res, [k]: filters[k] }), {}),
+      };
+      await serverState.updateSettings(updatedSettings, dataId);
+      updateSettings(updatedSettings);
+    };
+  return (
+    <React.Fragment>
+      {Object.entries(filters).map(([col, cfg]) => {
+        return (
+          <li key={`${prop}-${col}`} data-testid="query-entry">
+            <span className="toggler-action">
+              <button className="btn btn-plain ignore-clicks" onClick={dropColFilter(col)}>
+                <i className="ico-cancel mr-4" />
+              </button>
+            </span>
+            <span className="font-weight-bold text-nowrap">{removeBackticks(cfg.query ?? '')}</span>
+          </li>
+        );
+      })}
+    </React.Fragment>
+  );
+};
+
+/** Component properties for FilterDisplay */
+export interface FilterDisplayProps {
+  menuOpen?: InfoMenuType;
+  setMenuOpen: (menuOpen?: InfoMenuType) => void;
+}
+
+const selectResult = createSelector(
+  [
+    selectors.selectDataId,
+    selectors.selectPredefinedFilterConfigs,
+    selectors.selectHideDropRows,
+    selectors.selectInvertFilter,
+    selectors.selectQuery,
+    selectors.selectColumnFilters,
+    selectors.selectPredefinedFilters,
+    selectors.selectOutlierFilters,
+    selectors.selectSortInfo,
+    selectors.selectHighlightFilter,
+    selectors.selectIsArcticDB,
+  ],
+  (
+    dataId,
+    predefinedFilterConfigs,
+    hideDropRows,
+    invertFilter,
+    query,
+    columnFilters,
+    predefinedFilters,
+    outlierFilters,
+    sortInfo,
+    highlightFilter,
+    isArcticDB,
+  ) => ({
+    dataId,
+    predefinedFilterConfigs,
+    hideDropRows,
+    invertFilter: invertFilter ?? false,
+    query,
+    columnFilters: columnFilters ?? {},
+    predefinedFilters: predefinedFilters ?? {},
+    outlierFilters: outlierFilters ?? {},
+    sortInfo,
+    highlightFilter: highlightFilter ?? false,
+    isArcticDB,
+  }),
+);
+
+const FilterDisplay: React.FC<FilterDisplayProps & WithTranslation> = ({ menuOpen, setMenuOpen, t }) => {
+  const reduxState = useAppSelector(selectResult);
+  const dispatch = useAppDispatch();
+  const updateSettings = (updatedSettings: Partial<InstanceSettings>): void =>
+    dispatch(settingsActions.updateSettings(updatedSettings));
+  const showSidePanel = (view: SidePanelType): PayloadAction<SidePanelActionProps> =>
+    dispatch(AppActions.ShowSidePanelAction({ view }));
+  const filterRef = React.useRef<HTMLDivElement>(null);
+
+  const dropFilter =
+    (dropCol: string): (() => Promise<void>) =>
+    async (): Promise<void> => {
+      const updatedSettings = {
+        predefinedFilters: {
+          ...reduxState.predefinedFilters,
+          [dropCol]: { value: reduxState.predefinedFilters[dropCol].value, active: false },
+        },
+      };
+      await serverState.updateSettings(updatedSettings, reduxState.dataId);
+      updateSettings(updatedSettings);
+    };
+
+  const displayPredefined = (): JSX.Element => (
+    <React.Fragment>
+      {Object.entries(gu.filterPredefined(reduxState.predefinedFilters)).map(([name, value]) => {
+        const displayValue = predefinedFilterStr(reduxState.predefinedFilterConfigs, name, value.value);
+        return (
+          <li key={`predefined-${name}`}>
+            <span className="toggler-action">
+              <button className="btn btn-plain ignore-clicks" onClick={dropFilter(name)}>
+                <i className="ico-cancel mr-4" />
+              </button>
+            </span>
+            <span className="font-weight-bold text-nowrap">{`${name}: ${displayValue}`}</span>
+          </li>
+        );
+      })}
+    </React.Fragment>
+  );
+
+  const { query, columnFilters, outlierFilters, predefinedFilterConfigs, dataId } = reduxState;
+  if (gu.noFilters(reduxState)) {
+    return null;
+  }
+  const label = <div className="font-weight-bold d-inline-block">{`${t('Filter')}:`}</div>;
+  const filterSegs = [
+    ...Object.values(columnFilters).map((filter) => filter.query),
+    ...Object.values(outlierFilters).map((filter) => filter.query),
+    ...Object.entries(gu.filterPredefined(reduxState.predefinedFilters)).map(
+      ([name, value]) => `${name}: ${predefinedFilterStr(predefinedFilterConfigs, name, value.value)}`,
+    ),
+  ];
+  if (query) {
+    filterSegs.push(query);
+  }
+  const clearFilter =
+    (drop = false): (() => Promise<void>) =>
+    async (): Promise<void> => {
+      const settingsUpdates = {
+        query: '',
+        columnFilters: {},
+        outlierFilters: {},
+        predefinedFilters: Object.entries(reduxState.predefinedFilters).reduce(
+          (res, [name, value]) => ({ ...res, [name]: { ...value, active: false } }),
+          {},
+        ),
+        invertFilter: false,
+      };
+      if (drop) {
+        await serverState.dropFilteredRows(dataId);
+      } else {
+        await serverState.updateSettings(settingsUpdates, dataId);
+      }
+      updateSettings(settingsUpdates);
+    };
+  const toggleInvert = async (): Promise<void> => {
+    const settingsUpdates = { invertFilter: !reduxState.invertFilter };
+    await serverState.updateSettings(settingsUpdates, dataId);
+    updateSettings(settingsUpdates);
+  };
+  const moveToCustom = async (): Promise<void> => {
+    const response = await serverState.moveFiltersToCustom(dataId);
+    if (response?.settings) {
+      updateSettings(response.settings);
+      showSidePanel(SidePanelType.FILTER);
+    }
+  };
+  const saveHighlightFilter = async (): Promise<void> => {
+    await serverState.updateSettings({ highlightFilter: !reduxState.highlightFilter }, dataId);
+    updateSettings({ highlightFilter: !reduxState.highlightFilter });
+  };
+  const allButtons = (
+    <>
+      <i
+        className="ico-cancel pl-3 pointer"
+        style={{ marginTop: '-0.1em' }}
+        onClick={clearFilter()}
+        title={t('Clear Filters') ?? ''}
+      />
+      {!reduxState.hideDropRows && !reduxState.isArcticDB && (
+        <i
+          className="fas fa-eraser pl-3 pointer"
+          style={{ marginTop: '-0.1em' }}
+          onClick={clearFilter(true)}
+          title={t('Drop Filtered Rows') ?? ''}
+        />
+      )}
+      <i
+        className="fas fa-retweet pl-3 pointer"
+        style={{
+          marginTop: '-0.1em',
+          opacity: reduxState.invertFilter ? 1 : 0.5,
+        }}
+        onClick={toggleInvert}
+        title={t('Invert Filter') ?? ''}
+      />
+      {!reduxState.isArcticDB && (!!Object.keys(columnFilters).length || !!Object.keys(outlierFilters).length) && (
+        <i
+          className="fa fa-filter pl-3 pointer"
+          style={{ marginTop: '-0.1em' }}
+          onClick={moveToCustom}
+          title={t('Move Filters To Custom') ?? ''}
+        />
+      )}
+      {!reduxState.isArcticDB && (
+        <i
+          className="fa-solid fa-highlighter pl-3 pointer"
+          style={{
+            marginTop: '-0.1em',
+            opacity: reduxState.highlightFilter ? 1 : 0.5,
+          }}
+          onClick={saveHighlightFilter}
+          title={t(reduxState.highlightFilter ? 'Hide Filtered Rows' : 'Highlight Filtered Rows') ?? ''}
+        />
+      )}
+    </>
+  );
+
+  if (filterSegs.length === 1) {
+    return (
+      <>
+        {label}
+        <div className="pl-3 d-inline-block filter-menu-toggle info-link">{removeBackticks(filterSegs[0] ?? '')}</div>
+        {allButtons}
+      </>
+    );
+  }
+
+  const clickHandler = buildMenuHandler(InfoMenuType.FILTER, setMenuOpen, filterRef);
+  const filterText = truncate(removeBackticks(filterSegs.join(' and ')), 30);
+  return (
+    <>
+      {label}
+      <div className="pl-3 d-inline-block filter-menu-toggle" onClick={clickHandler} ref={filterRef}>
+        <span className="pointer">{filterText}</span>
+        <div className="column-toggle__dropdown" hidden={menuOpen !== InfoMenuType.FILTER}>
+          <ul>
+            <Queries prop="columnFilters" filters={reduxState.columnFilters} />
+            <Queries prop="outlierFilters" filters={reduxState.outlierFilters} />
+            {displayPredefined()}
+            {query && (
+              <li>
+                <span className="toggler-action">
+                  <button
+                    className="btn btn-plain ignore-clicks"
+                    onClick={async () => {
+                      await serverState.updateSettings({ query: '' }, dataId);
+                      updateSettings({ query: '' });
+                    }}
+                  >
+                    <i className="ico-cancel mr-4" />
+                  </button>
+                </span>
+                <span className="font-weight-bold text-nowrap">{query}</span>
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
+      {allButtons}
+    </>
+  );
+};
+
+export default withTranslation('main')(FilterDisplay);

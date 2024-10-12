@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "jsx": "react",
+    "baseUrl": "./",
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["es2017", "dom"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noUnusedLocals": true,
+    "outDir": "../../dtale/static/dist",
+    "paths": {
+      "ts-jest/preprocessor": ["node_modules/ts-jest/dist"],
+      "plotly.js-geo-dist-min": ["node_modules/@types/plotly.js"],
+    },
+    "rootDir": ".",
+    "sourceMap": true,
+    "strict": true,
+    "target": "esnext",
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "exclude": ["node_modules"]
+}
